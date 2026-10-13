@@ -1,0 +1,60 @@
+# Local security checks. Written by setup/install.ps1.
+#
+# Both hook types are installed, so both must be declared here. `pre-commit
+# install` alone only creates the pre-commit shim unless this line is present.
+default_install_hook_types: [pre-commit, pre-push]
+
+# Stop at the first failing hook in a stage rather than running every remaining
+# one. Without this, a CodeQL failure still waits on osv and the ~20-180 s
+# Claude review before the push is rejected - all for a verdict that was
+# already decided. Costs the "multiple independent tools agree" moment when
+# more than one hook would have caught the same change; that's a fair trade
+# for not making every blocked push pay for every later check too.
+fail_fast: true
+
+repos:
+  - repo: local
+    hooks:
+      # Fast enough (~0.5 s measured) to block on every commit.
+      - id: gitleaks
+        name: Secrets scan
+        entry: gitleaks git --pre-commit --redact --staged --verbose
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      # Second line of defence. `git commit --no-verify` skips the hook above
+      # entirely, and a commit made that way then pushes an unscanned secret.
+      # Scanning the whole working tree at push time closes that hole. Cheap
+      # enough that running it twice costs nothing worth counting.
+      - id: gitleaks-push
+        name: Secrets scan (push safety net)
+        entry: gitleaks dir . --redact --verbose
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: codeql
+        name: CodeQL static analysis
+        entry: powershell -ExecutionPolicy Bypass -File .hooks/codeql-check.ps1
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      # Deterministic, ~2 s on a repo with no lockfiles, and it answers a
+      # question CodeQL does not ask: CodeQL analyses the code we wrote, this
+      # analyses the code we pulled in. Ordered before the AI step so the cheap
+      # verifiable checks have already had their say.
+      - id: osv
+        name: Dependency vulnerability scan
+        entry: powershell -ExecutionPolicy Bypass -File .hooks/osv-check.ps1
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: claude-review
+        name: Claude Code security review
+        entry: powershell -ExecutionPolicy Bypass -File .hooks/claude-check.ps1
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

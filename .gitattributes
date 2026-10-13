@@ -1,0 +1,21 @@
+# setup.ps1 verifies the skills against checksums.sha256 before installing them
+# (CWE-494, Download of Code Without Integrity Check). Get-FileHash hashes the
+# bytes on disk, so if a clone rewrites line endings the hashes shift and a
+# perfectly legitimate download is rejected with "Integrity check FAILED".
+#
+# Measured 2026-08-24: with core.autocrlf=true the check passed 10/10, with
+# core.autocrlf=false it failed 10/10. Both are ordinary settings - the first is
+# the Git for Windows default, the second is what "checkout as-is" and every WSL
+# or Linux clone gives you.
+#
+# eol=lf overrides core.autocrlf, so every clone gets identical bytes and the
+# manifest is generated against the same content the installer will hash.
+plugins/shift-left-security/skills/** text eol=lf
+
+# setup.ps1 (2026-08-26) bundles setup/ alongside the skill and checksum-
+# verifies it the same way, for the same CWE-494 reason - same fix needed here.
+# Found by actually testing a sparse-clone install rather than by inspection:
+# 3 of 13 files failed verification because the manifest had been generated
+# against whatever line endings happened to already be on disk (a mix, per
+# each file's own edit history), not against the git blob every clone gets.
+setup/** text eol=lf

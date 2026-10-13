@@ -1,0 +1,46 @@
+// Gradle init script used by osv-check.ps1 to produce a CycloneDX SBOM.
+//
+// WHY AN INIT SCRIPT: the repository's own build.gradle is never touched. A hook
+// that required every project to add a plugin block would be a hook nobody
+// installs, and editing a tracked build file from a pre-push hook is not
+// acceptable behaviour. An init script is applied with -I, entirely from
+// outside the project.
+//
+// Verified 2026-08-17 against SasanLabs/VulnerableApp (Gradle 8.5, Spring Boot
+// 2.7.18, no lockfile): produced a 113-component SBOM whose scan found 27
+// vulnerable packages across 102 vulnerability groups. The same repo scanned
+// without this step reports zero packages and exit 128.
+
+import org.cyclonedx.gradle.CyclonedxPlugin
+
+initscript {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+    dependencies {
+        // Pinned deliberately. 'latest' in a security hook means the hook's
+        // behaviour changes without anyone choosing to change it.
+        // NOTE: Maven Central's maven-metadata.xml for this artifact is stale and
+        // reports 1.4.0 as latest. The Gradle plugin portal is the real source of
+        // truth and had 3.4.1 when this was written.
+        classpath 'org.cyclonedx:cyclonedx-gradle-plugin:3.4.1'
+    }
+}
+
+// Applied by implementation CLASS, not by plugin id.
+//
+// `apply plugin: 'org.cyclonedx.bom'` does NOT work here and the failure is
+// misleading. Verified on Gradle 8.5: the plugin jar resolves onto the initscript
+// classpath correctly (33 jars, confirmed by printing the configuration) and it
+// does contain a valid META-INF/gradle-plugins/org.cyclonedx.bom.properties, yet
+// applying by id still throws UnknownPluginException, because project-level
+// plugin-id resolution does not search the initscript classloader. Applying the
+// class directly does work.
+//
+// The class is CyclonedxPlugin - lowercase 'd'. Taken from the descriptor's
+// implementation-class, not guessed from the "CycloneDX" brand spelling, which
+// is what makes 'CycloneDxPlugin' a tempting and wrong guess.
+gradle.rootProject { p ->
+    p.pluginManager.apply(CyclonedxPlugin)
+}

@@ -1,0 +1,9 @@
+{
+  "name": "shift-left-security",
+  "description": "Local pre-commit/pre-push security checks (secrets, static analysis, dependency vulnerabilities, AI-assisted review) and a compliance-audit skill for public secure-coding standards (OWASP ASVS, NIST SSDF, CWE Top 25). Windows only for now.",
+  "author": {
+    "name": "Teodor-Alexandru Pinzariu",
+    "url": "https://github.com/teodor004"
+  },
+  "version": "0.1.0"
+}
